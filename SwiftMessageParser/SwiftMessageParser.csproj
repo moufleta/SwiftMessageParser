@@ -15,7 +15,6 @@
   <ItemGroup>
     <Folder Include="Data\" />
     <Folder Include="Controllers\" />
-    <Folder Include="Business\" />
   </ItemGroup>
 
 </Project>
