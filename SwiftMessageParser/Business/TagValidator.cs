@@ -2,6 +2,8 @@
 {
     public static class TagValidator
     {
+        private const int MaxTagValueLength = 16;
+
         public static bool FollowsNetworkValidatedRules(string tagValue)
         {
             if (tagValue.StartsWith("/") || tagValue.EndsWith("/"))
@@ -17,9 +19,9 @@
             return true;
         }
 
-        public static bool IsValidFormat(int expectedLength, string tagValue)
+        public static bool IsValidFormat(string tagValue)
         {
-            if (expectedLength != tagValue.Length)
+            if (MaxTagValueLength < tagValue.Length)
             {
                 return false;
             }
