@@ -4,6 +4,8 @@
     {
         public int Id { get; set; }
 
+        public int SwiftMessageId { get; set; }
+
         public string ApplicationId { get; set; }
 
         public string ServiceId { get; set; }

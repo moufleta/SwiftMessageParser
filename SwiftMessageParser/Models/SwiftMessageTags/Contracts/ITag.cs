@@ -4,6 +4,8 @@
     {
         int Id { get; set; }
 
+        int SwiftMessageId { get; set; }
+
         string TagCode { get; }
 
         string TagValue { get; set; }

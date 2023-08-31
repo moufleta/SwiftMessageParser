@@ -4,13 +4,15 @@
     {
         public int Id { get; set; }
 
-        public string MessageDirection { get; set; }
+        public int SwiftMessageId { get; set; }
 
-        public string MessageType { get; set; }
+        public string SwiftMessageDirection { get; set; }
+
+        public string SwiftMessageType { get; set; }
 
         public string RecipientBusinessIdentifierCode { get; set; }
 
-        public string MessagePriority { get; set; }
+        public string SwiftMessagePriority { get; set; }
 
         public string DeliveryMonitoring { get; set; }
 

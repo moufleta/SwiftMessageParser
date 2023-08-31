@@ -9,6 +9,8 @@ namespace SwiftMessageParser.Models.SwiftMessageTags
 
         public int Id { get; set; }
 
+        public int SwiftMessageId { get; set; }
+
         public string TagCode => TagCodeValue;
 
         public string TagValue { get; set; }
