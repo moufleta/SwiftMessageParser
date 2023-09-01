@@ -7,18 +7,199 @@ namespace SwiftMessageParser.Business
 {
     public class SwiftMessageParser
     {
-        public int GetBlockIdentifier(CharStream stream)
+        public const int Block1 = 1;
+        public const int Block2 = 2;
+        public const int Block3 = 3;
+        public const int Block4 = 4;
+
+        public void ParseSwiftMessageFile(string fileContent)
+        {
+            CharStream stream = new CharStream(fileContent);
+
+            // Section related to Block 1 and 2
+            string block1 = ParseBlock(stream, Block1);
+            string block2 = ParseBlock(stream, Block2);
+
+            // Section related to Block 3
+            string block3 = ParseBlock(stream, Block3);
+            var dictionary = ParseBlock3(new CharStream(block3));
+
+            // Section related to Block 4
+            string block4 = ParseBlock(stream, Block4);
+
+            IList<ITag> tags = ParseBlock4(new CharStream(block4));
+
+            // ...
+        }
+
+        private Dictionary<int, string> ParseBlock3(CharStream stream)
+        {
+            var dictionary = new Dictionary<int, string>();
+
+            while (!stream.IsEndOfStream)
+            {
+                string subblockBody = GetBlock(stream, out int subblockIdentifier);
+
+                if (!dictionary.ContainsKey(subblockIdentifier))
+                {
+                    dictionary.Add(subblockIdentifier, subblockBody);
+                }
+                else
+                {
+                    throw new SyntaxException(ExceptionMessage.DuplicateSubblock);
+                }
+            }
+
+            return dictionary;
+        }
+
+        private IList<ITag> ParseBlock4(CharStream stream)
+        {
+            IList<ITag> tags = new List<ITag>();
+            int narrativeCount = 0;
+            int relatedReferenceCount = 0;
+            int transactionReferenceNumberCount = 0;
+
+            while (!stream.IsEndOfStream)
+            {
+                var tag = ParseBlock4Tag(stream);
+
+                if (tag == null)
+                {
+                    break;
+                }
+
+                switch (tag.TagCode)
+                {
+                    case "20":
+                        transactionReferenceNumberCount++;
+
+                        if (transactionReferenceNumberCount == 1)
+                        {
+                            tags.Add(tag);
+                        }
+                        else
+                        {
+                            throw new SyntaxException(string.Format(ExceptionMessage.MultipleTags, "TransactionReferenceNumber"));
+                        }
+
+                        break;
+                    case "21":
+                        relatedReferenceCount++;
+
+                        if (relatedReferenceCount == 1)
+                        {
+                            tags.Add(tag);
+                        }
+                        else
+                        {
+                            throw new SyntaxException(string.Format(ExceptionMessage.MultipleTags, "RelatedReference"));
+                        }
+
+                        break;
+                    case "79":
+                        narrativeCount++;
+                        tags.Add(tag);
+
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            if (narrativeCount < 1 || transactionReferenceNumberCount != 1)
+            {
+                throw new SyntaxException(ExceptionMessage.MandatoryTagsMissing);
+            }
+
+            return tags;
+        }
+
+        private ITag ParseBlock4Tag(CharStream stream)
+        {
+            char c;
+            ITag tag = null;
+
+            while (true)
+            {
+                c = stream.GetNextChar();
+
+                if (c == '\n')
+                {
+                    continue;
+                }
+                else if (c == ':')
+                {
+                    break;
+                }
+                else if (c == '-')
+                {
+                    return tag;
+                }
+                else
+                {
+                    throw new SyntaxException(ExceptionMessage.UnrecognizedCharacter);
+                }
+            }
+
+            int tagIdentifier = ParseBlockIdentifier(stream);
+
+            switch (tagIdentifier)
+            {
+                case 20:
+                    tag = new TransactionReferenceNumber();
+
+                    break;
+                case 21:
+                    tag = new RelatedReference();
+
+                    break;
+                case 79:
+                    tag = new Narrative();
+
+                    break;
+                default:
+                    throw new SyntaxException(ExceptionMessage.InvalidTag);
+            }
+
+            StringBuilder content = new StringBuilder();
+
+            while (true)
+            {
+                c = stream.GetNextChar();
+
+                if (c == '\n')
+                {
+                    tag.TagValue = content.ToString();
+
+                    break;
+                }
+                else if (c == (char) 0)
+                {
+                    throw new SyntaxException(string.Format(ExceptionMessage.UnexpectedEndOfText, tagIdentifier));
+                }
+                else
+                {
+                    content.Append(c);
+                }
+            }
+
+            return tag;
+        }
+
+        private int ParseBlockIdentifier(CharStream stream)
         {
             bool foundAtLeastOneDigit = false;
+            char c;
             int result = 0;
 
             while (!stream.IsEndOfStream)
             {
-                char c = stream.GetNextChar();
+                c = stream.GetNextChar();
 
                 if (Char.IsDigit(c))
                 {
-                    result = result * 10 + (int)(c - '0');
+                    result = result * 10 + (int) (c - '0');
 
                     foundAtLeastOneDigit = true;
                 }
@@ -26,26 +207,24 @@ namespace SwiftMessageParser.Business
                 {
                     if (!foundAtLeastOneDigit)
                     {
-                        throw new SyntaxException("Unexpected colon encountered while parsing for a block or subblock number.");
+                        throw new SyntaxException(ExceptionMessage.UnexpectedColon);
                     }
 
                     return result;
                 }
                 else
                 {
-                    throw new SyntaxException("Invalid character encountered while parsing for a block or subblock number.");
+                    throw new SyntaxException(ExceptionMessage.InvalidCharacter);
                 }
             }
 
-            throw new SyntaxException("End of stream reached before finding a colon.");
+            throw new SyntaxException(ExceptionMessage.EndOfStream);
         }
 
-        // get block's content as string
-        public string GetBlock(CharStream stream, out int foundBlockNum)
+        private string GetBlock(CharStream stream, out int foundBlockIdentifier)
         {
             char c;
 
-            // Skip whitespace and look for the opening curly brace '{'
             while (true)
             {
                 c = stream.GetNextChar();
@@ -60,13 +239,10 @@ namespace SwiftMessageParser.Business
                     break;
                 }
 
-                throw new SyntaxException("Unrecognized character(s) at the beginning of the block.");
+                throw new SyntaxException(ExceptionMessage.UnrecognizedCharacter);
             }
 
-            // Successfully found the opening curly brace, get the block number
-            foundBlockNum = GetBlockIdentifier(stream);
-
-            // Start collecting the inner content
+            foundBlockIdentifier = ParseBlockIdentifier(stream);
             int openCurlyBraceCount = 1;
             StringBuilder content = new StringBuilder();
 
@@ -74,7 +250,7 @@ namespace SwiftMessageParser.Business
             {
                 c = stream.GetNextChar();
 
-                if (c == '{') // can happen in block 3 > {3:{108:SEC0001016754675}}
+                if (c == '{')
                 {
                     openCurlyBraceCount++;
                 }
@@ -83,84 +259,13 @@ namespace SwiftMessageParser.Business
                     openCurlyBraceCount--;
 
                     if (openCurlyBraceCount == 0)
-                        break; // Block is fully closed -> exit
-                }
-                else if (c == (char)0)
-                {
-                    throw new SyntaxException("Unexpected end of text while reading block " + foundBlockNum.ToString());
-                }
-                else
-                {
-                    // It's not an opening/closing curly brace -> it's part of the block's content/body
-                    content.Append(c);
-                }
-            }
-
-            // Block content is collected, return it
-            return content.ToString();
-        }
-
-        public ITag GetBlock4Tag(CharStream stream)
-        {
-            char c;
-
-            while (true)
-            {
-                c = stream.GetNextChar();
-
-                if (c == '-')
-                {
-                    return null;
-                }
-
-                if (c == '\n')
-                {
-                    continue;
-                }
-
-                if (c == ':')
-                {
-                    break; // tag opening
-                }
-
-                throw new SyntaxException("Unrecognized character(s) at the beginning of the block.");
-            }
-
-            // you're at the opening semicolon (:) of the tag before you execute this step
-            int tagCode = GetBlockIdentifier(stream);
-
-            ITag tag = null;
-
-            switch (tagCode)
-            {
-                case 20:
-                    tag = new TransactionReferenceNumber();
-                    break;
-                case 21:
-                    tag = new RelatedReference();
-                    break;
-                case 79:
-                    tag = new Narrative();
-                    break;
-                default:
-                    throw new SyntaxException("Use of incorrect tag for MT799 message");
-            }
-
-            // Start collecting tag value content
-            StringBuilder content = new StringBuilder();
-
-            while (true)
-            {
-                c = stream.GetNextChar();
-
-                if (c == '\n')
-                {
-                    tag.TagValue = content.ToString();
-                    break;
+                    {
+                        break;
+                    }
                 }
                 else if (c == (char) 0)
                 {
-                    throw new SyntaxException("Unexpected end of text while reading block " + tagCode.ToString());
+                    throw new SyntaxException(string.Format(ExceptionMessage.UnexpectedEndOfText, foundBlockIdentifier));
                 }
                 else
                 {
@@ -168,116 +273,19 @@ namespace SwiftMessageParser.Business
                 }
             }
 
-            // Block content is collected, return it
-            return tag;
+            return content.ToString();
         }
 
-        private string ParseBlock(CharStream stream, int expectedBlockNumber)
+        private string ParseBlock(CharStream stream, int expectedBlockIdentifier)
         {
-            string block = GetBlock(stream, out int foundBlock);
+            string block = GetBlock(stream, out int foundBlockIdentifier);
 
-            if (foundBlock != expectedBlockNumber)
+            if (foundBlockIdentifier != expectedBlockIdentifier)
             {
-                throw new SyntaxException("Expected block " + expectedBlockNumber + ", found block " + foundBlock);
+                throw new SyntaxException(string.Format(ExceptionMessage.BlockNotFound, expectedBlockIdentifier, foundBlockIdentifier));
             }
 
             return block;
-        }
-
-        // TODO
-        private Dictionary<int, string> ParseUserHeaderBlock(CharStream stream)
-        {
-            var dict = new Dictionary<int, string>();
-
-            while (!stream.IsEndOfStream)
-            {
-                string bodySubblock = GetBlock(stream, out int foundSubblock);
-
-                if (!dict.ContainsKey(foundSubblock))
-                {
-                    dict.Add(foundSubblock, bodySubblock);
-                }
-                else
-                {
-                    throw new SyntaxException("Data repetition present");
-                }
-            }
-
-            return dict;
-        }
-
-        // TODO
-        private List<ITag> ParseTextBlock(CharStream stream)
-        {
-            List<ITag> tags = new List<ITag>();
-            int transactionReferenceNumberCount = 0;
-            int relatedReferenceCount = 0;
-            int narrativeCount = 0;
-
-            while (!stream.IsEndOfStream)
-            {
-                var tag = GetBlock4Tag(stream);
-
-                if (tag == null) break;
-
-                switch (tag.TagCode)
-                {
-                    case "20":
-                        transactionReferenceNumberCount++;
-
-                        if (transactionReferenceNumberCount == 1)
-                        {
-                            tags.Add(tag);
-                        }
-                        else
-                        {
-                            throw new SyntaxException("Can't have more than one TransactionReferenceNumber tag in one message");
-                        }
-                        break;
-                    case "21":
-                        relatedReferenceCount++;
-
-                        if (relatedReferenceCount == 1)
-                        {
-                            tags.Add(tag);
-                        }
-                        else
-                        {
-                            throw new SyntaxException("Can't have more than one RelatedReference tag in one message");
-                        }
-                        break;
-                    case "79":
-                        narrativeCount++;
-                        tags.Add(tag);
-                        break;
-                    default:
-                        break;
-                }
-            }
-
-            if (transactionReferenceNumberCount != 1 || narrativeCount < 1)
-            {
-                throw new SyntaxException("Mandatory tags not present in message");
-            }
-
-            return tags;
-        }
-
-        // receives file content from controller (user input) and reads it
-        public void ParseFile(string fileContent)
-        {
-            CharStream stream = new CharStream(fileContent);
-
-            string block1 = ParseBlock(stream, 1);
-            string block2 = ParseBlock(stream, 2);
-
-            // Block 3 has subblocks
-            string block3 = ParseBlock(stream, 3);
-            var dict = ParseUserHeaderBlock(new CharStream(block3)); // now you have each sub-tag associated with its corresponding value
-
-            // Block 4
-            string block4 = ParseBlock(stream, 4);
-            List<ITag> tags = ParseTextBlock(new CharStream(block4));
         }
     }
 }
