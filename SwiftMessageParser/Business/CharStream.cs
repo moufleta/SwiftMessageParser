@@ -25,5 +25,15 @@
 
             return content[position++];
         }
+
+        public char GetPreviousChar()
+        {
+            if (position <= 0)
+            {
+                return (char) 0;
+            }
+
+            return content[position--];
+        }
     }
 }

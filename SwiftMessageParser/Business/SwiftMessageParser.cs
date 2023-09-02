@@ -7,25 +7,20 @@ namespace SwiftMessageParser.Business
 {
     public class SwiftMessageParser
     {
-        public const int Block1 = 1;
-        public const int Block2 = 2;
-        public const int Block3 = 3;
-        public const int Block4 = 4;
-
         public void ParseSwiftMessageFile(string fileContent)
         {
             CharStream stream = new CharStream(fileContent);
 
             // Section related to Block 1 and 2
-            string block1 = ParseBlock(stream, Block1);
-            string block2 = ParseBlock(stream, Block2);
+            string block1 = ParseBlock(stream, 1);
+            string block2 = ParseBlock(stream, 2);
 
             // Section related to Block 3
-            string block3 = ParseBlock(stream, Block3);
+            string block3 = ParseBlock(stream, 3);
             var dictionary = ParseBlock3(new CharStream(block3));
 
             // Section related to Block 4
-            string block4 = ParseBlock(stream, Block4);
+            string block4 = ParseBlock(stream, 4);
 
             IList<ITag> tags = ParseBlock4(new CharStream(block4));
 
@@ -39,6 +34,11 @@ namespace SwiftMessageParser.Business
             while (!stream.IsEndOfStream)
             {
                 string subblockBody = GetBlock(stream, out int subblockIdentifier);
+
+                if (string.IsNullOrEmpty(subblockBody))
+                {
+                    throw new SyntaxException(ExceptionMessage.RequiredInputMissing);
+                }
 
                 if (!dictionary.ContainsKey(subblockIdentifier))
                 {
@@ -164,23 +164,60 @@ namespace SwiftMessageParser.Business
 
             StringBuilder content = new StringBuilder();
 
-            while (true)
+            if (tagIdentifier == 79)
             {
-                c = stream.GetNextChar();
+                // Handle multi-line content for :79: tag
+                bool newLineDetected = false;
 
-                if (c == '\n')
+                while (true)
                 {
-                    tag.TagValue = content.ToString();
+                    c = stream.GetNextChar();
 
-                    break;
+                    if (c == '\n')
+                    {
+                        // Continue to the next line
+                        content.Append(Environment.NewLine);
+                        newLineDetected = true;
+                        continue;
+                    }
+                    else if (c == (char) 0)
+                    {
+                        throw new SyntaxException(string.Format(ExceptionMessage.UnexpectedEndOfText, tagIdentifier));
+                    }
+                    else if ((c == ':' || c == '-') && newLineDetected)
+                    {
+                        // beginning of a new tag
+                        c = stream.GetPreviousChar(); // right before the closing of the nerrative
+                        tag.TagValue = content.ToString();
+                        break;
+                    }
+                    else
+                    {
+                        content.Append(c);
+                        newLineDetected = false;
+                    }
                 }
-                else if (c == (char) 0)
+            }
+            else
+            {
+                // Handle single-line content for other tags
+                while (true)
                 {
-                    throw new SyntaxException(string.Format(ExceptionMessage.UnexpectedEndOfText, tagIdentifier));
-                }
-                else
-                {
-                    content.Append(c);
+                    c = stream.GetNextChar();
+
+                    if (c == '\n')
+                    {
+                        tag.TagValue = content.ToString();
+                        break;
+                    }
+                    else if (c == (char)0)
+                    {
+                        throw new SyntaxException(string.Format(ExceptionMessage.UnexpectedEndOfText, tagIdentifier));
+                    }
+                    else
+                    {
+                        content.Append(c);
+                    }
                 }
             }
 

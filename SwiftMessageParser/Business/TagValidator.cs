@@ -1,4 +1,6 @@
-﻿namespace SwiftMessageParser.Business
+﻿using SwiftMessageParser.Models.SwiftMessageTags.Contracts;
+
+namespace SwiftMessageParser.Business
 {
     public static class TagValidator
     {
@@ -70,6 +72,19 @@
             string allowedCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/-?:().,'+ \r\n";
 
             return allowedCharacters.Contains(character);
+        }
+
+        public static bool ValidateTags(IList<ITag> tags)
+        {
+            foreach (var tag in tags)
+            {
+                if (!tag.IsValid())
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 }
