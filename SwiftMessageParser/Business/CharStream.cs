@@ -41,18 +41,14 @@
         }
 
         /// <summary>
-        /// Retrieves the previous character from the character stream (the character before the current position)
-        /// and decrements the current position by one.
+        /// Moves the position indicator to the previous character in the character stream, if possible.
         /// </summary>
-        /// <returns>The previous character from the stream. Returns '\0' if the current position is at the beginning of the stream.</returns>
-        public char GetPreviousChar()
+        public void SetToPreviousChar()
         {
-            if (position <= 0)
+            if (position > 0)
             {
-                return (char) 0;
+                position--;
             }
-
-            return content[position--];
         }
     }
 }

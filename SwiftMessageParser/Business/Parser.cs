@@ -49,6 +49,7 @@ namespace SwiftMessageParser.Business
             IList<ITag> tags = ParseBlock4(new CharStream(block4));
 
             SwiftMessage swiftMessage = new SwiftMessage();
+            swiftMessage.CreatedOn = DateTime.UtcNow;
             swiftMessage.BasicHeader = new BasicHeader(block1);
             swiftMessage.ApplicationHeader = new ApplicationHeader(block2);
             swiftMessage.UserHeader = new UserHeader(dictionary);
@@ -178,6 +179,10 @@ namespace SwiftMessageParser.Business
                 {
                     continue;
                 }
+                else if (c == '\r')
+                {
+                    continue;
+                }
                 else if (c == ':')
                 {
                     break; // Found the beginning of a tag
@@ -238,7 +243,7 @@ namespace SwiftMessageParser.Business
                     {
                         // If a ':' or '-' is found and a newline was detected,
                         // it indicates the start of a new tag, so we stop accumulating content.
-                        c = stream.GetPreviousChar();
+                        stream.SetToPreviousChar();
                         tag.TagValue = content.ToString();
 
                         break;
@@ -358,9 +363,19 @@ namespace SwiftMessageParser.Business
                 if (c == '{')
                 {
                     openCurlyBraceCount++; // Increment the count for nested curly braces
+
+                    if (openCurlyBraceCount > 1)
+                    {
+                        content.Append(c);
+                    }
                 }
                 else if (c == '}')
                 {
+                    if (openCurlyBraceCount > 1)
+                    {
+                        content.Append(c);
+                    }
+
                     openCurlyBraceCount--;
 
                     if (openCurlyBraceCount == 0)
