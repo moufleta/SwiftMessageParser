@@ -16,6 +16,19 @@ When you run the application for the first time, the database initializer class 
 
 3. Update the `"DefaultConnection"` value with the path to your desired local database file. By default, it's set to `"Data Source=localdatabase.db"`.
 
+### Configuring NLog
+
+To configure the NLog logging settings for your local directory, follow these steps:
+
+1. Locate the `nlog.config` file in the project directory.
+
+2. Open the `nlog.config` file using a text editor of your choice.
+
+3. Look for the `<target>` element that specifies the file path where log files will be saved. It should look something like this:
+
+```xml
+<target xsi:type="File" name="file" fileName="C:\Logs\yourlog.log" />
+
 ### Running the Application
 
 To run my SWIFT MT799 Message Parser Web API:
