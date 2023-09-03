@@ -26,7 +26,6 @@ To configure the NLog logging settings for your local directory, follow these st
 
 3. Look for the `<target>` element that specifies the file path where log files will be saved. It should look something like this:
 
-```xml
 <target xsi:type="File" name="file" fileName="C:\Logs\yourlog.log" />
 
 ### Running the Application
