@@ -1,32 +1,71 @@
-﻿using SwiftMessageParser.Business.Exceptions;
+﻿using SwiftMessageParser.Business.Contracts;
+using SwiftMessageParser.Business.Exceptions;
+using SwiftMessageParser.Data.Contracts;
+using SwiftMessageParser.Models;
+using SwiftMessageParser.Models.SwiftMessageBlocks;
 using SwiftMessageParser.Models.SwiftMessageTags;
 using SwiftMessageParser.Models.SwiftMessageTags.Contracts;
 using System.Text;
 
 namespace SwiftMessageParser.Business
 {
-    public class SwiftMessageParser
+    /// <summary>
+    /// Represents a parser for Swift messages.
+    /// </summary>
+    public class Parser : IParser
     {
+        private readonly ISwiftMessageRepository swiftMessageRepository;
+
+        public Parser(ISwiftMessageRepository swiftMessageRepository)
+        {
+            this.swiftMessageRepository = swiftMessageRepository;
+        }
+
+        /// <summary>
+        /// Parses the content of a SWIFT message file and processes it, storing the parsed data in the database.
+        /// </summary>
+        /// <param name="fileContent">The content of the SWIFT message file.</param>
         public void ParseSwiftMessageFile(string fileContent)
         {
             CharStream stream = new CharStream(fileContent);
 
-            // Section related to Block 1 and 2
             string block1 = ParseBlock(stream, 1);
-            string block2 = ParseBlock(stream, 2);
+            Validator.ValidateBlock1Length(block1);
 
-            // Section related to Block 3
+            string block2 = ParseBlock(stream, 2);
+            Validator.ValidateBlock2Length(block2);
+
             string block3 = ParseBlock(stream, 3);
             var dictionary = ParseBlock3(new CharStream(block3));
 
-            // Section related to Block 4
-            string block4 = ParseBlock(stream, 4);
+            if (dictionary.ContainsKey(113))
+            {
+                Validator.ValidateBankPriorityCode(dictionary[113]);
+            }
 
+            Validator.ValidateMessageUserReference(dictionary[108]);
+
+            string block4 = ParseBlock(stream, 4);
             IList<ITag> tags = ParseBlock4(new CharStream(block4));
 
-            // ...
+            SwiftMessage swiftMessage = new SwiftMessage();
+            swiftMessage.BasicHeader = new BasicHeader(block1);
+            swiftMessage.ApplicationHeader = new ApplicationHeader(block2);
+            swiftMessage.UserHeader = new UserHeader(dictionary);
+
+            if (Validator.ValidateTags(tags))
+            {
+                swiftMessage.Tags = tags;
+            }
+
+            swiftMessageRepository.SaveSwiftMessage(swiftMessage);
         }
 
+        /// <summary>
+        /// Parses the third block of a SWIFT message.
+        /// </summary>
+        /// <param name="stream">The character stream containing the third block.</param>
+        /// <returns>A dictionary containing subblock identifiers and their corresponding content.</returns>
         private Dictionary<int, string> ParseBlock3(CharStream stream)
         {
             var dictionary = new Dictionary<int, string>();
@@ -53,6 +92,11 @@ namespace SwiftMessageParser.Business
             return dictionary;
         }
 
+        /// <summary>
+        /// Parses the fourth block of a SWIFT message.
+        /// </summary>
+        /// <param name="stream">The character stream containing the fourth block.</param>
+        /// <returns>A list of SWIFT message tags parsed from the fourth block.</returns>
         private IList<ITag> ParseBlock4(CharStream stream)
         {
             IList<ITag> tags = new List<ITag>();
@@ -115,11 +159,17 @@ namespace SwiftMessageParser.Business
             return tags;
         }
 
+        /// <summary>
+        /// Parses a tag within the fourth block of a SWIFT message.
+        /// </summary>
+        /// <param name="stream">The character stream containing the tag.</param>
+        /// <returns>An instance of a specific tag type representing the parsed tag.</returns>
         private ITag ParseBlock4Tag(CharStream stream)
         {
             char c;
             ITag tag = null;
 
+            // Loop to find the beginning of a tag (indicated by ':')
             while (true)
             {
                 c = stream.GetNextChar();
@@ -130,11 +180,11 @@ namespace SwiftMessageParser.Business
                 }
                 else if (c == ':')
                 {
-                    break;
+                    break; // Found the beginning of a tag
                 }
                 else if (c == '-')
                 {
-                    return tag;
+                    return null; // Tag separator '-' indicates the end of tags
                 }
                 else
                 {
@@ -175,9 +225,9 @@ namespace SwiftMessageParser.Business
 
                     if (c == '\n')
                     {
-                        // Continue to the next line
                         content.Append(Environment.NewLine);
                         newLineDetected = true;
+
                         continue;
                     }
                     else if (c == (char) 0)
@@ -186,15 +236,17 @@ namespace SwiftMessageParser.Business
                     }
                     else if ((c == ':' || c == '-') && newLineDetected)
                     {
-                        // beginning of a new tag
-                        c = stream.GetPreviousChar(); // right before the closing of the nerrative
+                        // If a ':' or '-' is found and a newline was detected,
+                        // it indicates the start of a new tag, so we stop accumulating content.
+                        c = stream.GetPreviousChar();
                         tag.TagValue = content.ToString();
+
                         break;
                     }
                     else
                     {
                         content.Append(c);
-                        newLineDetected = false;
+                        newLineDetected = false; // Reset newline detection
                     }
                 }
             }
@@ -207,10 +259,12 @@ namespace SwiftMessageParser.Business
 
                     if (c == '\n')
                     {
+                        // If a newline character is encountered, it marks the end of the tag's content
                         tag.TagValue = content.ToString();
+
                         break;
                     }
-                    else if (c == (char)0)
+                    else if (c == (char) 0)
                     {
                         throw new SyntaxException(string.Format(ExceptionMessage.UnexpectedEndOfText, tagIdentifier));
                     }
@@ -224,19 +278,25 @@ namespace SwiftMessageParser.Business
             return tag;
         }
 
+        /// <summary>
+        /// Parses and retrieves the identifier of a block within a SWIFT message.
+        /// </summary>
+        /// <param name="stream">The character stream containing the block's identifier.</param>
+        /// <returns>The identifier of the parsed block.</returns>
         private int ParseBlockIdentifier(CharStream stream)
         {
             bool foundAtLeastOneDigit = false;
             char c;
             int result = 0;
 
+            // Continue reading characters until a colon (:) or the end of stream is encountered
             while (!stream.IsEndOfStream)
             {
                 c = stream.GetNextChar();
 
                 if (Char.IsDigit(c))
                 {
-                    result = result * 10 + (int) (c - '0');
+                    result = result * 10 + (int) (c - '0'); // Accumulate the numeric identifier
 
                     foundAtLeastOneDigit = true;
                 }
@@ -258,10 +318,17 @@ namespace SwiftMessageParser.Business
             throw new SyntaxException(ExceptionMessage.EndOfStream);
         }
 
+        /// <summary>
+        /// Retrieves the content of a block within a SWIFT message.
+        /// </summary>
+        /// <param name="stream">The character stream containing the block.</param>
+        /// <param name="foundBlockIdentifier">The identifier of the found block.</param>
+        /// <returns>The content of the block.</returns>
         private string GetBlock(CharStream stream, out int foundBlockIdentifier)
         {
             char c;
 
+            // Skip whitespace characters until an opening curly brace is found
             while (true)
             {
                 c = stream.GetNextChar();
@@ -280,16 +347,17 @@ namespace SwiftMessageParser.Business
             }
 
             foundBlockIdentifier = ParseBlockIdentifier(stream);
-            int openCurlyBraceCount = 1;
+            int openCurlyBraceCount = 1; // Initialize the count of opening curly braces
             StringBuilder content = new StringBuilder();
 
+            // Continue reading characters until the matching closing curly brace is found
             while (true)
             {
                 c = stream.GetNextChar();
 
                 if (c == '{')
                 {
-                    openCurlyBraceCount++;
+                    openCurlyBraceCount++; // Increment the count for nested curly braces
                 }
                 else if (c == '}')
                 {
@@ -313,6 +381,12 @@ namespace SwiftMessageParser.Business
             return content.ToString();
         }
 
+        /// <summary>
+        /// Parses a block within a SWIFT message.
+        /// </summary>
+        /// <param name="stream">The character stream containing the block.</param>
+        /// <param name="expectedBlockIdentifier">The expected identifier of the block.</param>
+        /// <returns>The content of the parsed block.</returns>
         private string ParseBlock(CharStream stream, int expectedBlockIdentifier)
         {
             string block = GetBlock(stream, out int foundBlockIdentifier);

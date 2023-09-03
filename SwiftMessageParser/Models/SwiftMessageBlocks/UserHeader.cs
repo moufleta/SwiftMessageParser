@@ -2,18 +2,21 @@
 {
     public class UserHeader
     {
-        public string PriorityCode { get; set; }
-
-        public string SwiftMessageUserReference { get; set; }
+        private const int BankPriorityCodeIdentifier = 113;
+        private const int MessageUserReferenceIdentifier = 108;
 
         public UserHeader(IDictionary<int, string> dictionary)
         {
-            if (dictionary.ContainsKey(113))
+            if (dictionary.ContainsKey(BankPriorityCodeIdentifier))
             {
-                PriorityCode = dictionary[113];
+                BankPriorityCode = dictionary[BankPriorityCodeIdentifier];
             }
 
-            SwiftMessageUserReference = dictionary[108];
+            MessageUserReference = dictionary[MessageUserReferenceIdentifier];
         }
+
+        public string BankPriorityCode { get; set; }
+
+        public string MessageUserReference { get; set; }
     }
 }

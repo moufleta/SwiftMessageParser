@@ -1,4 +1,6 @@
-﻿namespace SwiftMessageParser.Models.SwiftMessageTags.Contracts
+﻿using System.Data.SQLite;
+
+namespace SwiftMessageParser.Models.SwiftMessageTags.Contracts
 {
     public interface ITag
     {
@@ -11,5 +13,7 @@
         string TagValue { get; set; }
 
         bool IsValid();
+
+        SQLiteCommand GenerateInsertCommand(SQLiteConnection connection);
     }
 }

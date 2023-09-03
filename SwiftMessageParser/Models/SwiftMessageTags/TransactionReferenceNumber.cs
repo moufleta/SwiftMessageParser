@@ -1,5 +1,6 @@
 ﻿using SwiftMessageParser.Business;
 using SwiftMessageParser.Models.SwiftMessageTags.Contracts;
+using System.Data.SQLite;
 
 namespace SwiftMessageParser.Models.SwiftMessageTags
 {
@@ -17,17 +18,28 @@ namespace SwiftMessageParser.Models.SwiftMessageTags
 
         public bool IsValid()
         {
-            if (!TagValidator.IsValidFormat(TagValue))
+            if (!Validator.IsValidFormat(TagValue))
             {
                 return false;
             }
 
-            if (!TagValidator.FollowsNetworkValidatedRules(TagValue))
+            if (!Validator.FollowsNetworkValidatedRules(TagValue))
             {
                 return false;
             }
 
             return true;
+        }
+
+        public SQLiteCommand GenerateInsertCommand(SQLiteConnection connection)
+        {
+            string insertSql = "INSERT INTO TransactionReferenceNumber (SwiftMessageId, TagCode, TagValue) VALUES (@SwiftMessageId, @TagCode, @TagValue)";
+            var command = new SQLiteCommand(insertSql, connection);
+
+            command.Parameters.AddWithValue("@SwiftMessageId", SwiftMessageId);
+            command.Parameters.AddWithValue("@TagCode", TagCode);
+            command.Parameters.AddWithValue("@TagValue", TagValue);
+            return command;
         }
     }
 }
