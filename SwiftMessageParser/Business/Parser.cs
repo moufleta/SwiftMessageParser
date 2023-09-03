@@ -54,18 +54,25 @@ namespace SwiftMessageParser.Business
             IList<ITag> tags = ParseBlock4(new CharStream(block4));
 
             SwiftMessage swiftMessage = new SwiftMessage();
-
-            if (Validator.ValidateTags(tags))
-            {
-                swiftMessage.Tags = tags;
-            }
-
-            MyLogger.GetInstance().Info("Block 4 parsed successfully.");
-
             swiftMessage.CreatedOn = DateTime.UtcNow;
             swiftMessage.BasicHeader = new BasicHeader(block1);
             swiftMessage.ApplicationHeader = new ApplicationHeader(block2);
             swiftMessage.UserHeader = new UserHeader(dictionary);
+
+            foreach (var tag in tags)
+            {
+                if (tag.IsValid())
+                {
+                    swiftMessage.Tags.Add(tag);
+                }
+                else
+                {
+                    MyLogger.GetInstance().Error("The tag's value is invalid.");
+                    throw new SyntaxException("The tag's value is invalid.");
+                }
+            }
+
+            MyLogger.GetInstance().Info("Block 4 parsed successfully.");
             swiftMessageRepository.SaveSwiftMessage(swiftMessage);
         }
 
