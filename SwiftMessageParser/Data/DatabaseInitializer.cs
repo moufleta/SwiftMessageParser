@@ -1,4 +1,5 @@
-﻿using System.Data.SQLite;
+﻿using SwiftMessageParser.Business;
+using System.Data.SQLite;
 
 namespace SwiftMessageParser.Data
 {
@@ -16,19 +17,21 @@ namespace SwiftMessageParser.Data
 
         public void SetUp()
         {
-            if (File.Exists(databasePath))
+            try
             {
-                return;
-            }
+                if (File.Exists(databasePath))
+                {
+                    return;
+                }
 
-            SQLiteConnection.CreateFile(databasePath);
-            string connectionString = configuration.GetConnectionString("DefaultConnection");
+                SQLiteConnection.CreateFile(databasePath);
+                string connectionString = configuration.GetConnectionString("DefaultConnection");
 
-            using (var connection = new SQLiteConnection(connectionString))
-            {
-                connection.Open();
+                using (var connection = new SQLiteConnection(connectionString))
+                {
+                    connection.Open();
 
-                string createSwiftMessageTableQuery = @"
+                    string createSwiftMessageTableQuery = @"
                                 CREATE TABLE SwiftMessage (
                                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     CreatedOn DATETIME NOT NULL,
@@ -47,7 +50,7 @@ namespace SwiftMessageParser.Data
                                     MessageUserReference TEXT NOT NULL
                                 )";
 
-                string createTransactionReferenceNumberTableQuery = @"
+                    string createTransactionReferenceNumberTableQuery = @"
                                 CREATE TABLE TransactionReferenceNumber (
                                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     SwiftMessageId INTEGER NOT NULL,
@@ -56,7 +59,7 @@ namespace SwiftMessageParser.Data
                                     FOREIGN KEY (SwiftMessageId) REFERENCES SwiftMessage(Id)
                                 )";
 
-                string createRelatedReferenceTableQuery = @"
+                    string createRelatedReferenceTableQuery = @"
                                 CREATE TABLE RelatedReference (
                                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     SwiftMessageId INTEGER NOT NULL,
@@ -65,7 +68,7 @@ namespace SwiftMessageParser.Data
                                     FOREIGN KEY (SwiftMessageId) REFERENCES SwiftMessage(Id)
                                 )";
 
-                string createNarrativeTableQuery = @"
+                    string createNarrativeTableQuery = @"
                                 CREATE TABLE Narrative (
                                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     SwiftMessageId INTEGER NOT NULL,
@@ -74,20 +77,25 @@ namespace SwiftMessageParser.Data
                                     FOREIGN KEY (SwiftMessageId) REFERENCES SwiftMessage(Id)
                                 )";
 
-                using (var command = new SQLiteCommand(connection))
-                {
-                    command.CommandText = createSwiftMessageTableQuery;
-                    command.ExecuteNonQuery();
+                    using (var command = new SQLiteCommand(connection))
+                    {
+                        command.CommandText = createSwiftMessageTableQuery;
+                        command.ExecuteNonQuery();
 
-                    command.CommandText = createTransactionReferenceNumberTableQuery;
-                    command.ExecuteNonQuery();
+                        command.CommandText = createTransactionReferenceNumberTableQuery;
+                        command.ExecuteNonQuery();
 
-                    command.CommandText = createRelatedReferenceTableQuery;
-                    command.ExecuteNonQuery();
+                        command.CommandText = createRelatedReferenceTableQuery;
+                        command.ExecuteNonQuery();
 
-                    command.CommandText = createNarrativeTableQuery;
-                    command.ExecuteNonQuery();
+                        command.CommandText = createNarrativeTableQuery;
+                        command.ExecuteNonQuery();
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                MyLogger.GetInstance().Error("An error occurred during database setup: ", ex.Message);
             }
         }
     }

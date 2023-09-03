@@ -1,4 +1,5 @@
-﻿using SwiftMessageParser.Data.Contracts;
+﻿using SwiftMessageParser.Business;
+using SwiftMessageParser.Data.Contracts;
 using SwiftMessageParser.Models;
 using System.Data;
 using System.Data.SQLite;
@@ -17,6 +18,8 @@ namespace SwiftMessageParser.Data
 
         public void SaveSwiftMessage(SwiftMessage swiftMessage)
         {
+            MyLogger.GetInstance().Info("Saving a Swift message...");
+
             connection = new SQLiteConnection(configuration.GetConnectionString("DefaultConnection"));
             OpenConnection();
 
@@ -38,9 +41,12 @@ namespace SwiftMessageParser.Data
                     }
 
                     transaction.Commit();
+
+                    MyLogger.GetInstance().Info("Swift message saved successfully.");
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    MyLogger.GetInstance().Error($"Error while saving Swift message: {ex.Message}");
                     transaction.Rollback();
 
                     throw;
@@ -105,6 +111,10 @@ namespace SwiftMessageParser.Data
             insertCommand.Parameters.AddWithValue("@BankPriorityCode", swiftMessage.UserHeader.BankPriorityCode);
             insertCommand.Parameters.AddWithValue("@MessageUserReference", swiftMessage.UserHeader.MessageUserReference);
 
+            MyLogger.GetInstance().Info("Generating INSERT command for SwiftMessage...");
+
+            MyLogger.GetInstance().Debug("Generated SQL: ", insertSql);
+
             return insertCommand;
         }
 
@@ -112,7 +122,10 @@ namespace SwiftMessageParser.Data
         {
             if (connection.State != ConnectionState.Closed)
             {
+                MyLogger.GetInstance().Info("Closing the database connection...");
+
                 connection.Close();
+                MyLogger.GetInstance().Info("Database connection closed.");
             }
         }
 
@@ -120,7 +133,10 @@ namespace SwiftMessageParser.Data
         {
             if (connection.State != ConnectionState.Open)
             {
+                MyLogger.GetInstance().Info("Opening the database connection...");
+
                 connection.Open();
+                MyLogger.GetInstance().Info("Database connection opened.");
             }
         }
     }

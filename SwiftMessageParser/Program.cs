@@ -1,3 +1,4 @@
+using NLog.Web;
 using SwiftMessageParser.Business;
 using SwiftMessageParser.Business.Contracts;
 using SwiftMessageParser.Data;
@@ -11,6 +12,10 @@ builder.Services.AddScoped<ISwiftMessageRepository, SwiftMessageRepository>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Logging.ClearProviders();
+
+builder.Host.UseNLog();
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())

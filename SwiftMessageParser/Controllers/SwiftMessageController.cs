@@ -1,11 +1,13 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using NLog;
+using SwiftMessageParser.Business;
 using SwiftMessageParser.Business.Contracts;
 using SwiftMessageParser.Business.Exceptions;
 
 namespace SwiftMessageParser.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/message")]
     public class SwiftMessageController : ControllerBase
     {
         private readonly IParser parser;
@@ -15,14 +17,17 @@ namespace SwiftMessageParser.Controllers
             this.parser = parser;
         }
 
-        [HttpPost]
-        public IActionResult UploadSwiftMessage(IFormFile file)
+        [HttpPost("insert")]
+        public IActionResult InsertSwiftMessage(IFormFile file)
         {
             try
             {
+                MyLogger.GetInstance().Info("Entering SwiftMessageController. InsertSwiftMessage method.");
+
                 if (file == null || file.Length == 0)
                 {
-                    return BadRequest("Invalid file");
+                    MyLogger.GetInstance().Error("Invalid file.");
+                    return BadRequest("Invalid file.");
                 }
 
                 using (var reader = new StreamReader(file.OpenReadStream()))
@@ -30,19 +35,24 @@ namespace SwiftMessageParser.Controllers
                     var fileContent = reader.ReadToEnd();
 
                     parser.ParseSwiftMessageFile(fileContent);
-                    return Ok("File uploaded and processed successfully");
+
+                    MyLogger.GetInstance().Info("File uploaded and processed successfully.");
+                    return Ok("File uploaded and processed successfully.");
                 }
             }
             catch (ArgumentException ex)
             {
+                MyLogger.GetInstance().Error("ArgumentException occurred: " + ex.Message);
                 return StatusCode(StatusCodes.Status400BadRequest, ex.Message);
             }
             catch (SyntaxException ex)
             {
+                MyLogger.GetInstance().Error("SyntaxException occurred: " + ex.Message);
                 return StatusCode(StatusCodes.Status400BadRequest, ex.Message);
             }
             catch (Exception ex)
             {
+                MyLogger.GetInstance().Error("Unhandled exception occurred: " + ex.Message);
                 return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
             }
         }
